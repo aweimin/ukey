@@ -1,0 +1,62 @@
+{
+	// 不允许编辑器检测缩进, 使用固定的缩进
+	"editor.detectIndentation": false,
+
+	// 不允许在 tab 中插入空格
+	"editor.insertSpaces": false,
+
+	// 设置编辑器在保存文件时自动格式化
+	"editor.formatOnSave": true,
+
+	// 使用 Prettier 作为默认格式化工具, 需要本地安装 Prettier
+	// prettier 默认格式化 .js, .jsx, .ts, .tsx, .css, .less, .scss, .json, .graphql, .md, .vue, .yaml, .html 文件
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+
+	"[php]": {
+		// php 需指定 Pretty 作为格式化工具, 需要本地安装 @prettier/plugin-php
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+
+	"[shellscript]": {
+		// sh 需指定 Pretty 作为格式化工具, 需要本地安装 prettier-plugin-sh
+		// 未在 vscode 中生效, 仅在命令行中生效
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+
+	"[xml]": {
+		// "editor.formatOnSave": false,
+		// xml 需指定 Pretty 作为格式化工具, 需要本地安装 @prettier/plugin-xml
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[javascriptreact]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[css]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[less]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[scss]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[html]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"prettier.endOfLine": "crlf"
+}
