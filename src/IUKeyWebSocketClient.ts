@@ -60,7 +60,7 @@ interface IUKeyWebSocketClient {
 	writeSKFile(appHandle: number, fileName: string, offset: number, data: string): Promise<UKeyResponse>;
 	genRandomData(devHandle: number, length: number): Promise<UKeyResponse>;
 	loadModule(): Promise<UKeyResponse>;
+	close(): Promise<UKeyResponse>;
 }
 
 export { IUKeyWebSocketClient };
-

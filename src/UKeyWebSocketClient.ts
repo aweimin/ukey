@@ -103,11 +103,11 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 		const r = JSON.parse(response.data || response);
 		const msg_id = r.MsgId;
 
-		if (r.Result) {
-			console.info('i_return:' + r.Response);
-		} else {
-			console.error('e_return:' + r.response);
-		}
+		// if (r.Result) {
+		// 	console.info('i_return:' + r.Response);
+		// } else {
+		// 	console.error('e_return:' + r.response);
+		// }
 
 		// 获取对应的Promise处理函数
 		const resolve = this.promiseResolvers_.get(msg_id);
@@ -551,7 +551,20 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	genRandomData(devHandle: number, length: number): Promise<UKeyResponse> {
 		return this.exec('GenRandomData', [devHandle, length]);
 	}
+
+	/**
+	 * 释放资源
+	 */
+	async close(): Promise<UKeyResponse> {
+		const response: UKeyResponse = {
+			result: true,
+			response: '',
+		};
+		if (this.ws) {
+			this.ws.close();
+		}
+		return response;
+	}
 }
 
 export { UKeyWebSocketClient };
-

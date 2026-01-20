@@ -1447,6 +1447,20 @@ class UKeyClient implements IUKeyWebSocketClient {
 		}
 		return newResponse;
 	}
+	/**
+	 * 释放资源
+	 */
+	async close(): Promise<UKeyResponse> {
+		let response: UKeyResponse = {
+			result: true,
+			response: '',
+		};
+		if (this.ukeyWebSocketClient) {
+			const result = await this.ukeyWebSocketClient.close();
+			response = { ...response, ...result };
+		}
+		return response;
+	}
 }
 
 export { UKeyClient };
