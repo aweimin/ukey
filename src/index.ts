@@ -4,4 +4,5 @@ export { UKeyWebSocketClient } from './UKeyWebSocketClient';
 export { UKeyClient } from './UKeyClient';
 export { UKeyUtils } from './UKeyUtils';
 export { UniqueIdGenerator } from './UniqueIdGenerator';
-export { UKeyResponse } from './types';
+export * from './types';
+export * from './constants';
