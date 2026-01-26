@@ -50,14 +50,14 @@ export const HASHALGO_IDS = {
 /**
  * Hash算法ID类型
  */
-export type HashAlgoId = (typeof HASHALGO_IDS)[keyof typeof HASHALGO_IDS];
+export type HashAlgId = (typeof HASHALGO_IDS)[keyof typeof HASHALGO_IDS];
 
 /**
  * 根据算法类型返回对应的哈希算法ID
  * @param algType 算法类型字符串
  * @returns 对应的哈希算法ID
  */
-export function getHashAlgoId(algType: string): HashAlgoId {
+export function getHashAlgId(algType: string): HashAlgId {
 	switch (algType.toLowerCase()) {
 		case 'sgd_sm3':
 		case 'sm3':
@@ -72,4 +72,3 @@ export function getHashAlgoId(algType: string): HashAlgoId {
 			return HASHALGO_IDS.UNKNOWN;
 	}
 }
-

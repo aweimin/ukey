@@ -1,18 +1,18 @@
 import { IUKeyWebSocketClient } from './IUKeyWebSocketClient';
 import { UniqueIdGenerator } from './UniqueIdGenerator';
-import { AlgorithmId, HashAlgoId } from './constants';
-import { UKeyResponse, RSAKeyLength } from './types';
+import { AlgorithmId, HashAlgId } from './constants';
+import { UKeyWebSocketResponse, RSAKeyLength } from './types';
 
 /**
  * UKey WebSocket客户端类
  * 提供与UKey控件通信的接口
  */
 class UKeyWebSocketClient implements IUKeyWebSocketClient {
-	private module_: string = 'IActiveXCtrl';
-	private clsid: string;
+	private readonly module_: string = 'IActiveXCtrl';
+	private readonly clsid: string;
 	private ws: WebSocket | null = null;
-	private promiseResolvers_: Map<string, (value: UKeyResponse) => void> = new Map();
-	private promiseRejectors_: Map<string, (reason: any) => void> = new Map();
+	private readonly promiseResolvers_: Map<string, (value: UKeyWebSocketResponse) => void> = new Map();
+	private readonly promiseRejectors_: Map<string, (reason: any) => void> = new Map();
 
 	constructor(clsid: string) {
 		this.clsid = clsid;
@@ -28,23 +28,23 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 				// Node 18+（全局 WebSocket）
 				this.ws = new globalThis.WebSocket(wsUrl);
 			} else {
-				reject('WebSocket not supported in this environmentt');
+				reject(new Error('WebSocket not supported in this environment'));
 			}
 
-			if (!this.ws) {
-				reject('Failed to create WebSocket instance');
-			} else {
+			if (this.ws) {
 				this.ws.onerror = () => {
-					reject('Unable to establish connection to WebSocket');
+					reject(new Error('Unable to establish connection to WebSocket'));
 				};
 				this.ws.onopen = () => resolve();
+			} else {
+				reject(new Error('Failed to create WebSocket instance'));
 			}
 		});
 	}
 	/**
 	 * 加载模块
 	 */
-	loadModule(): Promise<UKeyResponse> {
+	loadModule(): Promise<UKeyWebSocketResponse> {
 		return new Promise((resolve, reject) => {
 			const msg_id = 'LoadModule';
 
@@ -70,7 +70,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param param - 参数数组
 	 * @returns Promise，解析为结果对象
 	 */
-	private exec(func: string, param: any[]): Promise<UKeyResponse> {
+	private exec(func: string, param: any[]): Promise<UKeyWebSocketResponse> {
 		return new Promise((resolve, reject) => {
 			const msg_id = UniqueIdGenerator.generateId();
 
@@ -91,7 +91,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 			this.promiseResolvers_.set(msg_id, resolve);
 			this.promiseRejectors_.set(msg_id, reject);
 
-			this.ws && this.ws.send(msg);
+			this.ws?.send(msg);
 		});
 	}
 
@@ -115,7 +115,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 
 		if (resolve) {
 			// 调用resolve函数完成Promise
-			resolve({ result: r.Result, response: r.Response });
+			resolve({ result: r.Result ?? false, response: r.Response ?? '' });
 
 			// 清理存储的resolve和reject函数
 			this.promiseResolvers_.delete(msg_id);
@@ -129,7 +129,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	/**
 	 * 枚举设备
 	 */
-	enumDev(bPresent: boolean): Promise<UKeyResponse> {
+	enumDev(bPresent: boolean): Promise<UKeyWebSocketResponse> {
 		return this.exec('EnumDev', [bPresent]);
 	}
 	/**
@@ -137,7 +137,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param devName 设备名称
 	 * @returns
 	 */
-	connectDev(devName: string): Promise<UKeyResponse> {
+	connectDev(devName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('ConnectDev', [devName]);
 	}
 
@@ -146,7 +146,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param devHandle 设备句柄
 	 * @returns
 	 */
-	disConnectDev(devHandle: number): Promise<UKeyResponse> {
+	disConnectDev(devHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('DisConnectDev', [devHandle]);
 	}
 
@@ -156,7 +156,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param label 标签
 	 * @returns
 	 */
-	setLabel(devHandle: number, label: string): Promise<UKeyResponse> {
+	setLabel(devHandle: number, label: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('SetLabel', [devHandle, label]);
 	}
 
@@ -165,7 +165,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param devHandle 设备句柄
 	 * @returns
 	 */
-	getDevInfo(devHandle: number): Promise<UKeyResponse> {
+	getDevInfo(devHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('GetDevInfo', [devHandle]);
 	}
 
@@ -175,7 +175,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param devHandle 设备句柄
 	 * @returns
 	 */
-	enumApplication(devHandle: number): Promise<UKeyResponse> {
+	enumApplication(devHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('EnumApplication', [devHandle]);
 	}
 
@@ -185,7 +185,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param appName 应用名称
 	 * @returns
 	 */
-	openApplication(devHandle: number, appName: string): Promise<UKeyResponse> {
+	openApplication(devHandle: number, appName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('OpenApplication', [devHandle, appName]);
 	}
 
@@ -196,7 +196,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param pinValue PIN值
 	 * @returns
 	 */
-	verifyPIN(appHandle: number, pinType: number, pinValue: string): Promise<UKeyResponse> {
+	verifyPIN(appHandle: number, pinType: number, pinValue: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('VerifyPIN', [appHandle, pinType, pinValue]);
 	}
 
@@ -208,7 +208,12 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param newPinValue 新PIN值
 	 * @returns
 	 */
-	changePIN(appHandle: number, pinType: number, oldPinValue: string, newPinValue: string): Promise<UKeyResponse> {
+	changePIN(
+		appHandle: number,
+		pinType: number,
+		oldPinValue: string,
+		newPinValue: string
+	): Promise<UKeyWebSocketResponse> {
 		return this.exec('ChangePIN', [appHandle, pinType, oldPinValue, newPinValue]);
 	}
 
@@ -217,7 +222,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param appHandle 应用句柄
 	 * @returns
 	 */
-	closeApplication(appHandle: number): Promise<UKeyResponse> {
+	closeApplication(appHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('CloseApplication', [appHandle]);
 	}
 
@@ -227,7 +232,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param appHandle 应用句柄
 	 * @returns
 	 */
-	enumContainer(appHandle: number): Promise<UKeyResponse> {
+	enumContainer(appHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('EnumContainer', [appHandle]);
 	}
 
@@ -237,7 +242,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conName 容器名称
 	 * @returns
 	 */
-	createContainer(appHandle: number, conName: string): Promise<UKeyResponse> {
+	createContainer(appHandle: number, conName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('CreateContainer', [appHandle, conName]);
 	}
 
@@ -247,7 +252,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conName 容器名称
 	 * @returns
 	 */
-	deleteContainer(appHandle: number, conName: string): Promise<UKeyResponse> {
+	deleteContainer(appHandle: number, conName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('DeleteContainer', [appHandle, conName]);
 	}
 
@@ -257,7 +262,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conName 容器名称
 	 * @returns
 	 */
-	openContainer(appHandle: number, conName: string): Promise<UKeyResponse> {
+	openContainer(appHandle: number, conName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('OpenContainer', [appHandle, conName]);
 	}
 
@@ -266,7 +271,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conHandle 容器句柄
 	 * @returns
 	 */
-	closeContainer(conHandle: number): Promise<UKeyResponse> {
+	closeContainer(conHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('CloseContainer', [conHandle]);
 	}
 
@@ -275,7 +280,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conHandle 容器句柄
 	 * @returns
 	 */
-	getContainerType(conHandle: number): Promise<UKeyResponse> {
+	getContainerType(conHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('GetContainerType', [conHandle]);
 	}
 
@@ -287,7 +292,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param hexCert 证书内容
 	 * @returns
 	 */
-	importCertificate(conHandle: number, keyType: boolean, hexCert: string): Promise<UKeyResponse> {
+	importCertificate(conHandle: number, keyType: boolean, hexCert: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('ImportCertificate', [conHandle, keyType, hexCert]);
 	}
 
@@ -297,7 +302,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param keyType true表示签名证书，false表示加密证书
 	 * @returns
 	 */
-	exportCertificate(conHandle: number, keyType: boolean): Promise<UKeyResponse> {
+	exportCertificate(conHandle: number, keyType: boolean): Promise<UKeyWebSocketResponse> {
 		return this.exec('ExportCertificate', [conHandle, keyType]);
 	}
 
@@ -307,7 +312,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param keyType true表示签名公钥，false表示加密公钥
 	 * @returns
 	 */
-	exportPublicKey(conHandle: number, keyType: boolean): Promise<UKeyResponse> {
+	exportPublicKey(conHandle: number, keyType: boolean): Promise<UKeyWebSocketResponse> {
 		return this.exec('ExportPublicKey', [conHandle, keyType]);
 	}
 
@@ -318,7 +323,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param bitLength 密钥长度
 	 * @returns
 	 */
-	genRSAKeyPair(conHandle: number, bitLength: RSAKeyLength): Promise<UKeyResponse> {
+	genRSAKeyPair(conHandle: number, bitLength: RSAKeyLength): Promise<UKeyWebSocketResponse> {
 		return this.exec('GenRSAKeyPair', [conHandle, bitLength]);
 	}
 
@@ -334,7 +339,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 		algId: AlgorithmId,
 		hexSessionKeyEncryptedData: string,
 		hexRsaPriKeyEncryptedData: string
-	): Promise<UKeyResponse> {
+	): Promise<UKeyWebSocketResponse> {
 		return this.exec('ImportRSAKeyPair', [conHandle, algId, hexSessionKeyEncryptedData, hexRsaPriKeyEncryptedData]);
 	}
 	/**
@@ -342,7 +347,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conHandle 容器句柄
 	 * @param hexData 待签名数据的十六进制字符串
 	 */
-	rsaSignData(conHandle: number, hexData: string): Promise<UKeyResponse> {
+	rsaSignData(conHandle: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('RSASignData', [conHandle, hexData]);
 	}
 
@@ -352,7 +357,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param algId 加密算法ID
 	 * @param hexPubKey 公钥的十六进制字符串
 	 */
-	rsaExportSessionKey(conHandle: number, algId: AlgorithmId, hexPubKey: string): Promise<UKeyResponse> {
+	rsaExportSessionKey(conHandle: number, algId: AlgorithmId, hexPubKey: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('RSAExportSessionKey', [conHandle, algId, hexPubKey]);
 	}
 
@@ -360,7 +365,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * 生成ECC密钥对
 	 * @param conHandle 容器句柄
 	 */
-	genECCKeyPair(conHandle: number): Promise<UKeyResponse> {
+	genECCKeyPair(conHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('GenECCKeyPair', [conHandle]);
 	}
 
@@ -369,7 +374,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conHandle 容器句柄
 	 * @param hexData 包含密钥对数据的十六进制字符
 	 */
-	importECCKeyPair(conHandle: number, hexData: string): Promise<UKeyResponse> {
+	importECCKeyPair(conHandle: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('ImportECCKeyPair', [conHandle, hexData]);
 	}
 
@@ -378,7 +383,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param conHandle 容器句柄
 	 * @param hexData 待签名数据的十六进制字符串
 	 */
-	eccSignData(conHandle: number, hexData: string): Promise<UKeyResponse> {
+	eccSignData(conHandle: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('ECCSignData', [conHandle, hexData]);
 	}
 
@@ -389,7 +394,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param algId 加密算法ID
 	 * @param hexPubKey 公钥的十六进制字符串
 	 */
-	eccExportSessionKey(conHandle: number, algId: AlgorithmId, hexPubKey: string): Promise<UKeyResponse> {
+	eccExportSessionKey(conHandle: number, algId: AlgorithmId, hexPubKey: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('ECCExportSessionKey', [conHandle, algId, hexPubKey]);
 	}
 
@@ -399,7 +404,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param sessionKey 会话密钥句柄
 	 * @param hexEncParam 加密参数的十六进制字符串
 	 */
-	encryptInit(sessionKey: number, hexEncParam: string): Promise<UKeyResponse> {
+	encryptInit(sessionKey: number, hexEncParam: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('EncryptInit', [sessionKey, hexEncParam]);
 	}
 
@@ -408,7 +413,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param sessionKey 会话密钥句柄
 	 * @param hexData 待加密数据的十六进制字符串
 	 */
-	encrypt(sessionKey: number, hexData: string): Promise<UKeyResponse> {
+	encrypt(sessionKey: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('Encrypt', [sessionKey, hexData]);
 	}
 
@@ -417,7 +422,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param sessionKey 会话密钥句柄
 	 * @param hexData 待加密数据的十六进制字符串
 	 */
-	encryptUpdate(sessionKey: number, hexData: string): Promise<UKeyResponse> {
+	encryptUpdate(sessionKey: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('EncryptUpdate', [sessionKey, hexData]);
 	}
 
@@ -425,7 +430,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * 加密数据完成 要配合encryptUpdate使用
 	 * @param sessionKey 会话密钥句柄
 	 */
-	encryptFinal(sessionKey: number): Promise<UKeyResponse> {
+	encryptFinal(sessionKey: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('EncryptFinal', [sessionKey]);
 	}
 
@@ -437,7 +442,12 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param hexPubKey 公钥的十六进制字符串
 	 * @param signerId 签名者ID
 	 */
-	digestInit(devHandle: number, algId: HashAlgoId, hexPubKey: string, signerId: string): Promise<UKeyResponse> {
+	digestInit(
+		devHandle: number,
+		algId: HashAlgId,
+		hexPubKey: string,
+		signerId: string
+	): Promise<UKeyWebSocketResponse> {
 		return this.exec('DigestInit', [devHandle, algId, hexPubKey, signerId]);
 	}
 
@@ -446,7 +456,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param hashHandle 摘要句柄
 	 * @param hexData 待摘要数据的十六进制字符串
 	 */
-	digest(hashHandle: number, hexData: string): Promise<UKeyResponse> {
+	digest(hashHandle: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('Digest', [hashHandle, hexData]);
 	}
 
@@ -455,7 +465,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param hashHandle 摘要句柄
 	 * @param hexData 待摘要数据的十六进制字符串
 	 */
-	digestUpdate(hashHandle: number, hexData: string): Promise<UKeyResponse> {
+	digestUpdate(hashHandle: number, hexData: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('DigestUpdate', [hashHandle, hexData]);
 	}
 
@@ -463,7 +473,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * 摘要计算完成 要配合digestUpdate使用
 	 * @param hashHandle 摘要句柄
 	 */
-	digestFinal(hashHandle: number): Promise<UKeyResponse> {
+	digestFinal(hashHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('DigestFinal', [hashHandle]);
 	}
 
@@ -472,7 +482,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * 关闭句柄
 	 * @param handle 句柄
 	 */
-	closeHandle(handle: number): Promise<UKeyResponse> {
+	closeHandle(handle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('CloseHandle', [handle]);
 	}
 
@@ -481,7 +491,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * 枚举SK文件
 	 * @param appHandle 应用句柄
 	 */
-	enumSKFile(appHandle: number): Promise<UKeyResponse> {
+	enumSKFile(appHandle: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('EnumSKFile', [appHandle]);
 	}
 	/**
@@ -489,7 +499,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param appHandle 应用句柄
 	 * @param fileName 文件名
 	 */
-	deleteSKFile(appHandle: number, fileName: string): Promise<UKeyResponse> {
+	deleteSKFile(appHandle: number, fileName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('DeleteSKFile', [appHandle, fileName]);
 	}
 
@@ -499,7 +509,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param fileName 文件名
 	 * @returns
 	 */
-	getSKFileInfo(appHandle: number, fileName: string): Promise<UKeyResponse> {
+	getSKFileInfo(appHandle: number, fileName: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('GetSKFileInfo', [appHandle, fileName]);
 	}
 
@@ -517,7 +527,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 		fileSize: number,
 		read: number,
 		ulFIleWRight: number
-	): Promise<UKeyResponse> {
+	): Promise<UKeyWebSocketResponse> {
 		return this.exec('CreateSKFile', [appHandle, fileName, fileSize, read, ulFIleWRight]);
 	}
 
@@ -528,7 +538,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param offset 偏移
 	 * @param length 长度
 	 */
-	readSKFile(appHandle: number, fileName: string, offset: number, length: number): Promise<UKeyResponse> {
+	readSKFile(appHandle: number, fileName: string, offset: number, length: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('ReadSKFile', [appHandle, fileName, offset, length]);
 	}
 
@@ -539,7 +549,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param offset 偏移
 	 * @param data 数据
 	 */
-	writeSKFile(appHandle: number, fileName: string, offset: number, data: string): Promise<UKeyResponse> {
+	writeSKFile(appHandle: number, fileName: string, offset: number, data: string): Promise<UKeyWebSocketResponse> {
 		return this.exec('WriteSKFile', [appHandle, fileName, offset, data]);
 	}
 
@@ -548,15 +558,14 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param devHandle 设备句柄
 	 * @param length 长度
 	 */
-	genRandomData(devHandle: number, length: number): Promise<UKeyResponse> {
+	genRandomData(devHandle: number, length: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('GenRandomData', [devHandle, length]);
 	}
-
 	/**
 	 * 释放资源
 	 */
-	async close(): Promise<UKeyResponse> {
-		const response: UKeyResponse = {
+	async close(): Promise<UKeyWebSocketResponse> {
+		const response: UKeyWebSocketResponse = {
 			result: true,
 			response: '',
 		};

@@ -9,9 +9,14 @@ class UKeyUtils {
 	 */
 	static toHexString(str: string): string {
 		let val = '';
-		for (let i = 0; i < str.length; i++) {
-			if (val == '') val = str.charCodeAt(i).toString(16);
-			else val += str.charCodeAt(i).toString(16);
+		const chars = Array.from(str); // 使用Array.from处理Unicode字符
+
+		for (const char of chars) {
+			const codePoint = char.codePointAt(0);
+			if (codePoint !== undefined) {
+				const hex = codePoint.toString(16).padStart(4, '0'); // 使用4位十六进制表示完整Unicode
+				val += hex;
+			}
 		}
 		return val;
 	}
@@ -22,7 +27,7 @@ class UKeyUtils {
 	 * @returns 是否成功
 	 */
 	static checkResponse(code: string): boolean {
-		return code == '00000000';
+		return code === '00000000';
 	}
 
 	/**
@@ -84,7 +89,7 @@ class UKeyUtils {
 	 */
 	static hexToInt(str: string): number {
 		str = this.reverseStrByHex(str);
-		return parseInt(str, 16);
+		return Number.parseInt(str, 16);
 	}
 
 	/**
@@ -125,7 +130,7 @@ class UKeyUtils {
 		let replace = 0;
 		for (let i = str.length / 2 - 1; i > 0; i--) {
 			const suffix = str.substring(i * 2, i * 2 + 2);
-			if (suffix != '00') {
+			if (suffix !== '00') {
 				break;
 			}
 			replace += 2;
@@ -138,18 +143,9 @@ class UKeyUtils {
 		let result = '';
 		for (let i = 0; i < str.length / 2; i++) {
 			const temp = fix + str.substring(i * 2, i * 2 + 2);
-			result += String.fromCharCode(parseInt(temp));
+			result += String.fromCodePoint(Number.parseInt(temp));
 		}
 		return result;
-	}
-
-	/**
-	 * 去除字符串两端空白字符
-	 * @param str - 输入字符串
-	 * @returns 去除空白后的字符串
-	 */
-	static trim(str: string): string {
-		return str.replace(/(^\s*)|(\s*$)/g, '');
 	}
 
 	/**
@@ -158,13 +154,13 @@ class UKeyUtils {
 	 * @param index - 开始索引
 	 * @returns 响应码
 	 */
-	static getResponseCode(response: string, index?: number): string {
-		index = index || 0;
-		if (response.length < 8) {
-			throw new Error('response is invalid: ' + response);
+	static getResponseCode(response: string, index: number = 0): string {
+		if (!response || response.length < 8) {
+			console.log('response is invalid: ' + response);
+			return '0a000001'; // 返回一个失败的错误码
 		}
 		const responseCode = this.reverseStrByHex(response.substring(index, index + 8));
-		if (!responseCode || responseCode != '00000000') {
+		if (!responseCode || responseCode !== '00000000') {
 			console.log('bad responseCode: ' + responseCode + ', response: ' + response);
 		}
 		return responseCode;
