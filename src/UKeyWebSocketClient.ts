@@ -13,6 +13,10 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	private ws: WebSocket | null = null;
 	private readonly promiseResolvers_: Map<string, (value: UKeyWebSocketResponse) => void> = new Map();
 	private readonly promiseRejectors_: Map<string, (reason: any) => void> = new Map();
+	// 添加一个事件监听器映射
+	private readonly eventListeners_: Map<string, Set<(event: Event) => void>> = new Map();
+	public onclose: ((event: CloseEvent) => any) | null = null;
+	public onerror: ((event: Event) => any) | null = null;
 
 	constructor(clsid: string) {
 		this.clsid = clsid;
@@ -30,12 +34,28 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 			} else {
 				reject(new Error('WebSocket not supported in this environment'));
 			}
+			const ws = this.ws;
 
-			if (this.ws) {
-				this.ws.onerror = () => {
+			if (ws) {
+				ws.onerror = () => {
 					reject(new Error('Unable to establish connection to WebSocket'));
 				};
-				this.ws.onopen = () => resolve();
+				ws.onopen = () => {
+					resolve();
+					ws.onerror = (event: Event) => {
+						if (this.onerror) {
+							this.onerror(event);
+						}
+						this.dispatchEvent('error', event);
+					};
+				};
+				// 添加WebSocket关闭事件处理
+				ws.onclose = (event: CloseEvent) => {
+					if (this.onclose) {
+						this.onclose(event);
+					}
+					this.dispatchEvent('close', event);
+				};
 			} else {
 				reject(new Error('Failed to create WebSocket instance'));
 			}
@@ -102,12 +122,6 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	private _callback(response: any): void {
 		const r = JSON.parse(response.data || response);
 		const msg_id = r.MsgId;
-
-		// if (r.Result) {
-		// 	console.info('i_return:' + r.Response);
-		// } else {
-		// 	console.error('e_return:' + r.response);
-		// }
 
 		// 获取对应的Promise处理函数
 		const resolve = this.promiseResolvers_.get(msg_id);
@@ -561,6 +575,39 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	genRandomData(devHandle: number, length: number): Promise<UKeyWebSocketResponse> {
 		return this.exec('GenRandomData', [devHandle, length]);
 	}
+
+	/**
+	 * 添加事件监听器
+	 */
+	addEventListener(type: string, listener: (event: Event) => void): void {
+		if (!this.eventListeners_.has(type)) {
+			this.eventListeners_.set(type, new Set());
+		}
+		this.eventListeners_.get(type)!.add(listener);
+	}
+
+	/**
+	 * 移除事件监听器
+	 */
+	removeEventListener(type: string, listener: (event: Event) => void): void {
+		const listeners = this.eventListeners_.get(type);
+		if (listeners) {
+			listeners.delete(listener);
+		}
+	}
+
+	/**
+	 * 派发事件
+	 */
+	dispatchEvent(type: string, event: Event): void {
+		const listeners = this.eventListeners_.get(type);
+		if (listeners) {
+			for (const listener of listeners) {
+				listener(event);
+			}
+		}
+	}
+
 	/**
 	 * 释放资源
 	 */

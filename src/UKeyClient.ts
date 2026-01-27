@@ -34,11 +34,29 @@ const getDefaultErrorCode = (): UKeyError => {
 
 class UKeyClient {
 	private readonly ukeyWebSocketClient: UKeyWebSocketClient;
+	private readonly clsid: string;
+	public onclose: ((event: CloseEvent) => any) | null = null;
+	public onerror: ((event: Event) => any) | null = null;
 
 	constructor(clsid: string) {
+		this.clsid = clsid;
 		this.ukeyWebSocketClient = new UKeyWebSocketClient(clsid);
+		this.ukeyWebSocketClient.onclose = (event: CloseEvent) => {
+			if (this.onclose) {
+				this.onclose(event);
+			}
+		};
+		this.ukeyWebSocketClient.onerror = (event: Event) => {
+			if (this.onerror) {
+				this.onerror(event);
+			}
+		};
 	}
 
+	/**
+	 * 初始化
+	 * @param wsUrl WebSocket地址 wss://127.0.0.1:1237
+	 */
 	async init(wsUrl: string = 'wss://127.0.0.1:1237'): Promise<void> {
 		return this.ukeyWebSocketClient.init(wsUrl);
 	}
