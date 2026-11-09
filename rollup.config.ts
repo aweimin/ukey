@@ -15,10 +15,10 @@ const input = 'src/index.ts'; // 入口文件路径
 // 为 UMD 格式准备的全局变量名称（驼峰命名）
 const umdName = name
 	.replace(/^@/, '')
-	.replaceAll('-', '_')  // 替换连字符
-	.replaceAll('/', '_')  // 替换斜杠
+	.replaceAll('-', '_') // 替换连字符
+	.replaceAll('/', '_') // 替换斜杠
 	.split('_')
-	.map((part:string) => part.charAt(0).toUpperCase() + part.slice(1))
+	.map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
 	.join('');
 
 export default [
@@ -41,7 +41,7 @@ export default [
 				rootDir: 'src',
 				outDir: 'lib',
 			}),
-			terser(), // 代码压缩
+			// terser(), // 代码压缩
 		],
 		external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})],
 	},
@@ -63,7 +63,7 @@ export default [
 				rootDir: 'src',
 				outDir: 'es',
 			}),
-			terser(), // 代码压缩
+			// terser(), // 代码压缩
 		],
 		external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})],
 	},
@@ -110,7 +110,7 @@ export default [
 				rootDir: 'src',
 				outDir: 'dist',
 			}),
-			terser(), // 代码压缩
+			// terser(), // 代码压缩
 		],
 		external: [...Object.keys(pkg.peerDependencies || {}), 'ssh2'],
 	},
