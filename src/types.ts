@@ -129,7 +129,7 @@ export interface EccSignatureBlob {
 	signature: string;
 }
 
-const RSA_KEY_LENGTH_MAP = {
+export const RSA_KEY_LENGTH_MAP = {
 	RSA1024: 1024,
 	RSA2048: 2048,
 } as const;

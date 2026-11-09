@@ -1,5 +1,5 @@
-module.exports = {
-	reject: ['pnpm', 'prettier-plugin-sh'],
+export default {
+	reject: ['pnpm'],
 
 	target: (name) => {
 		const minorUpArr = ['antd', '@types/node'];

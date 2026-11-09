@@ -7,6 +7,15 @@
 	"unpkg": "dist/index.umd.min.js",
 	"types": "es/index.d.ts",
 	"type": "module",
+	"devEngines": {
+		"packageManager": [
+			{
+				"name": "pnpm",
+				"version": "12.18.0",
+				"onFail": "ignore"
+			}
+		]
+	},
 	"publishConfig": {
 		"registry": "https://registry.npmjs.org"
 	},
@@ -31,8 +40,9 @@
 	"scripts": {
 		"clean": "rimraf lib es dist",
 		"clean:all": "pnpm clean && rimraf  node_modules pnpm-lock.yml",
-		"lint": "eslint src --ext .jsx,.js,.tsx,.ts",
-		"format": "prettier ./**/*.{js,jsx,tx,tsx} --write",
+		"lint": "eslint src",
+		"format": "prettier ./**/*.{js,jsx,ts,tsx} --write",
+		"test": "jest",
 		"lib": "tsc -outDir lib --target es6 --module commonjs",
 		"es": "tsc -outDir es --target es2024",
 		"build": "pnpm clean && pnpm  rollup",
@@ -45,12 +55,16 @@
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@rollup/plugin-terser": "^1.0.2",
 		"@rollup/plugin-typescript": "^12.3.1",
+		"@types/jest": "^30.0.0",
 		"@types/node": "^24.19.2",
 		"eslint": "^10.14.0",
 		"globals": "^17.14.0",
+		"jest": "^30.5.2",
+		"jiti": "^2.7.0",
 		"prettier": "3.9.10",
 		"rimraf": "^6.1.4",
 		"rollup": "^4.68.0",
+		"ts-jest": "^29.4.15",
 		"tslib": "^2.9.1",
 		"tsx": "^4.23.15",
 		"typescript": "^6.0.3",

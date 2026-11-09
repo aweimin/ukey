@@ -66,13 +66,10 @@ class UKeyUtils {
 	 * @returns 转换后的字符串
 	 */
 	static reverseStrByHex(str: string): string {
-		if (str.length > 8) {
-			console.log('超出int代表的8位长度，请仔细检查一下');
-			return null!;
-		}
-		if (str.length < 8) {
-			console.log('int值的byte[]小于8位16进制字符长度，请仔细检查一下');
-			return null!;
+		if (str.length !== 8) {
+			console.log('int值应为8位16进制字符长度，请仔细检查一下: ' + str);
+			// 返回空串，调用方 parseInt 后得到 NaN，便于用 Number.isNaN 识别异常
+			return '';
 		}
 		let result = '';
 		for (let i = 0; i < str.length / 2; i++) {
@@ -98,11 +95,7 @@ class UKeyUtils {
 	 * @returns 转换后的十六进制字符串
 	 */
 	static intToBigHex(num: number): string {
-		let str = num.toString(16);
-		while (str.length < 8) {
-			str = '0' + str;
-		}
-		return str;
+		return num.toString(16).padStart(8, '0');
 	}
 
 	/**
@@ -111,11 +104,7 @@ class UKeyUtils {
 	 * @returns 转换后的十六进制字符串
 	 */
 	static intToHex(num: number): string {
-		let str = num.toString(16);
-		while (str.length < 8) {
-			str = '0' + str;
-		}
-		return this.reverseStrByHex(str);
+		return this.reverseStrByHex(num.toString(16).padStart(8, '0'));
 	}
 
 	/**
@@ -172,7 +161,7 @@ class UKeyUtils {
 	 * @returns 是否成功
 	 */
 	static checkCode(responseCode: string | number): boolean {
-		return Number(responseCode) === 0 || responseCode === '00000000';
+		return Number(responseCode) === 0;
 	}
 }
 

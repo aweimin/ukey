@@ -41,6 +41,8 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 					reject(new Error('Unable to establish connection to WebSocket'));
 				};
 				ws.onopen = () => {
+					// 绑定消息回调，统一按 MsgId 分发响应
+					ws.onmessage = (response: any) => this._callback(response);
 					resolve();
 					ws.onerror = (event: Event) => {
 						if (this.onerror) {
@@ -51,6 +53,8 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 				};
 				// 添加WebSocket关闭事件处理
 				ws.onclose = (event: CloseEvent) => {
+					// 连接关闭时拒绝所有挂起请求，避免调用方永久等待
+					this.rejectPendingRequests('WebSocket 连接已关闭');
 					if (this.onclose) {
 						this.onclose(event);
 					}
@@ -66,6 +70,10 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 */
 	loadModule(): Promise<UKeyWebSocketResponse> {
 		return new Promise((resolve, reject) => {
+			if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+				reject(new Error('WebSocket 未连接，请先调用 init()'));
+				return;
+			}
 			const msg_id = 'LoadModule';
 
 			// 存储resolve和reject函数以便后续回调时使用
@@ -77,10 +85,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 				Module: this.module_,
 			});
 
-			if (this.ws) {
-				this.ws.onmessage = (response: any) => this._callback(response);
-				this.ws.send(msg);
-			}
+			this.ws.send(msg);
 		});
 	}
 
@@ -92,6 +97,10 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 */
 	private exec(func: string, param: any[]): Promise<UKeyWebSocketResponse> {
 		return new Promise((resolve, reject) => {
+			if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+				reject(new Error('WebSocket 未连接，请先调用 init()'));
+				return;
+			}
 			const msg_id = UniqueIdGenerator.generateId();
 
 			const param_: {
@@ -111,7 +120,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 			this.promiseResolvers_.set(msg_id, resolve);
 			this.promiseRejectors_.set(msg_id, reject);
 
-			this.ws?.send(msg);
+			this.ws.send(msg);
 		});
 	}
 
@@ -120,7 +129,13 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param response - WebSocket响应
 	 */
 	private _callback(response: any): void {
-		const r = JSON.parse(response.data || response);
+		let r: any;
+		try {
+			r = JSON.parse(response.data || response);
+		} catch (e) {
+			console.log('响应报文解析失败: ', e);
+			return;
+		}
 		const msg_id = r.MsgId;
 
 		// 获取对应的Promise处理函数
@@ -137,6 +152,17 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 				this.promiseRejectors_.delete(msg_id);
 			}
 		}
+	}
+
+	/**
+	 * 拒绝所有挂起的请求（连接关闭时调用），避免调用方永久等待
+	 */
+	private rejectPendingRequests(reason: string): void {
+		for (const reject of this.promiseRejectors_.values()) {
+			reject(new Error(reason));
+		}
+		this.promiseRejectors_.clear();
+		this.promiseResolvers_.clear();
 	}
 
 	// 设备管理相关方法
@@ -475,7 +501,7 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	}
 
 	/**
-	 * 摘要计算完成 要配合digestUpdate使用
+	 * 分组摘要计算 要配合digestInit和digestFinal使用
 	 * @param hashHandle 摘要句柄
 	 * @param hexData 待摘要数据的十六进制字符串
 	 */
@@ -533,16 +559,16 @@ class UKeyWebSocketClient implements IUKeyWebSocketClient {
 	 * @param fileName 文件名
 	 * @param fileSize 文件大小
 	 * @param read 读权限
-	 * @param ulFIleWRight 写权限
+	 * @param ulFileWRight 写权限
 	 */
 	createSKFile(
 		appHandle: number,
 		fileName: string,
 		fileSize: number,
 		read: number,
-		ulFIleWRight: number
+		ulFileWRight: number
 	): Promise<UKeyWebSocketResponse> {
-		return this.exec('CreateSKFile', [appHandle, fileName, fileSize, read, ulFIleWRight]);
+		return this.exec('CreateSKFile', [appHandle, fileName, fileSize, read, ulFileWRight]);
 	}
 
 	/**

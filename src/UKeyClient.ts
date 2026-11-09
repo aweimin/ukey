@@ -1,4 +1,4 @@
-import { getErrorCodeByCode, getErrorCodeByHexString, isSuccessCode } from './ErrorCode';
+import { getErrorCodeByCode, getErrorCodeByHexString } from './ErrorCode';
 import { UKeyUtils } from './UKeyUtils';
 import { UKeyWebSocketClient } from './UKeyWebSocketClient';
 import { AlgorithmId, HashAlgId } from './constants';
@@ -54,6 +54,54 @@ class UKeyClient {
 	}
 
 	/**
+	 * 校验十六进制报文的响应码，失败时填充错误信息
+	 * 注意：无论响应码是否收录在错误码表中，只要非成功码都视为失败，
+	 * 避免未收录的错误码被当作成功响应继续解析负载
+	 * @param responseCode 响应码（大端序8位十六进制字符串）
+	 * @param error 待填充的错误对象
+	 * @returns 是否为失败响应（true 时调用方应返回失败响应）
+	 */
+	private fillErrorByResponseCode(responseCode: string, error: UKeyError): boolean {
+		if (UKeyUtils.checkResponse(responseCode)) {
+			return false;
+		}
+		const errorCode = getErrorCodeByHexString(responseCode);
+		if (errorCode) {
+			error.code = errorCode.code;
+			error.message = errorCode.description;
+			error.messageId = errorCode.messageId;
+			error.value = errorCode.value;
+		} else {
+			// 错误码表中未收录的响应码，按实际码值返回（responseCode 已是大端序，直接解析）
+			error.code = Number.parseInt(responseCode, 16);
+			error.message = '未收录的错误码';
+			error.messageId = 'unknown';
+			error.value = '0x' + responseCode.toLowerCase();
+		}
+		return true;
+	}
+
+	/**
+	 * 按十进制错误码填充错误信息（void 类方法的 response 为十进制数字符串）
+	 * @param code 十进制错误码
+	 * @param error 待填充的错误对象
+	 */
+	private fillErrorByCode(code: number, error: UKeyError): void {
+		const errorCode = getErrorCodeByCode(code);
+		if (errorCode) {
+			error.code = errorCode.code;
+			error.message = errorCode.description;
+			error.messageId = errorCode.messageId;
+			error.value = errorCode.value;
+		} else {
+			// 错误码表中未收录的错误码，按实际码值返回
+			error.code = code;
+			error.message = '未收录的错误码';
+			error.messageId = 'unknown';
+		}
+	}
+
+	/**
 	 * 初始化
 	 * @param wsUrl WebSocket地址 wss://127.0.0.1:1237
 	 */
@@ -81,16 +129,11 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const size = UKeyUtils.hexToInt(response.substring(8, 16));
-			if (size < 1) {
+			if (Number.isNaN(size) || size < 1) {
 				error.message = 'EnumDev error. ' + 'size < 1';
 				return faultResponse;
 			}
@@ -130,12 +173,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const ret = UKeyUtils.hexToInt(response.substring(0, 8));
@@ -168,7 +206,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -178,14 +216,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'DisconnectDev error. ';
@@ -206,7 +238,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -216,14 +248,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'SetLabel error. ';
@@ -244,17 +270,12 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 
 			const devInfo = response;
-			if (devInfo == null || devInfo.length < 332) {
+			if (devInfo == null || devInfo.length < 396) {
 				error.message = 'GetDevInfo error. Invalid response length';
 			} else {
 				const label = UKeyUtils.hexToAscii(devInfo.substring(268, 332));
@@ -290,16 +311,11 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const size = UKeyUtils.hexToInt(response.substring(8, 16));
-			if (size < 1) {
+			if (Number.isNaN(size) || size < 1) {
 				error.message = 'EnumApplication error. size < 1';
 				return faultResponse;
 			}
@@ -340,12 +356,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 
@@ -378,20 +389,15 @@ class UKeyClient {
 		const { result, response } = ukeyResponse;
 		const error: UKeyPinError = {
 			...getDefaultErrorCode(),
-			remainingAttempts: 0,
+			remainingAttempts: -1,
 		};
 
 		const faultResponse: UKeyPinErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response); //0x0a000024 pin不正常
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				const remainingAttempts = UKeyUtils.hexToInt(response.substring(8, 16));
-				error.remainingAttempts = Number.isNaN(remainingAttempts) ? 0 : remainingAttempts;
+				error.remainingAttempts = Number.isNaN(remainingAttempts) ? -1 : remainingAttempts;
 				return faultResponse;
 			}
 			const successResponse: UKeySuccessResponse<boolean> = {
@@ -411,32 +417,27 @@ class UKeyClient {
 	 * @param pinType PIN类型 1-用户PIN 0-管理员PIN
 	 * @param oldPinValue 旧PIN值
 	 * @param newPinValue 新PIN值
-	 * @returns Promise<UKeyResponse<boolean>>
+	 * @returns Promise<UKeyPinResponse<boolean>>
 	 */
 	async changePIN(
 		appHandle: number,
 		pinType: number,
 		oldPinValue: string,
 		newPinValue: string
-	): Promise<UKeyResponse<boolean>> {
+	): Promise<UKeyPinResponse<boolean>> {
 		const ukeyResponse = await this.ukeyWebSocketClient.changePIN(appHandle, pinType, oldPinValue, newPinValue);
 		const { result, response } = ukeyResponse;
 		const error: UKeyPinError = {
 			...getDefaultErrorCode(),
-			remainingAttempts: 0,
+			remainingAttempts: -1,
 		};
 
-		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
+		const faultResponse: UKeyPinErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response); //0x0a000024 pin不正常
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				const remainingAttempts = UKeyUtils.hexToInt(response.substring(8, 16));
-				error.remainingAttempts = Number.isNaN(remainingAttempts) ? 0 : remainingAttempts;
+				error.remainingAttempts = Number.isNaN(remainingAttempts) ? -1 : remainingAttempts;
 				return faultResponse;
 			}
 
@@ -464,7 +465,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -474,14 +475,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'CloseApplication error. ';
@@ -503,16 +498,11 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const size = UKeyUtils.hexToInt(response.substring(8, 16));
-			if (size < 1) {
+			if (Number.isNaN(size) || size < 1) {
 				error.message = 'EnumContainer error. size < 1';
 				return faultResponse;
 			}
@@ -553,12 +543,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 
@@ -593,7 +578,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -603,14 +588,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'DeleteContainer error. ';
@@ -632,12 +611,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 
@@ -671,7 +645,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -681,14 +655,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'CloseContainer error. ';
@@ -709,12 +677,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 
@@ -762,7 +725,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -772,14 +735,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'ImportCertificate error. ';
@@ -801,16 +758,11 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const size = UKeyUtils.hexToInt(response.substring(8, 16));
-			if (size < 1) {
+			if (Number.isNaN(size) || size < 1) {
 				error.message = 'ExportCertificate error. size < 1';
 				return faultResponse;
 			}
@@ -842,15 +794,14 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const pubKeyLen = UKeyUtils.hexToInt(response.substring(8, 16));
+			if (Number.isNaN(pubKeyLen) || pubKeyLen < 1) {
+				error.message = 'ExportPublicKey error. size < 1';
+				return faultResponse;
+			}
 			const pubKey = response.substring(16, 16 + pubKeyLen * 2);
 			const successResponse: UKeySuccessResponse<string> = {
 				...ukeyResponse,
@@ -879,22 +830,23 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			// 返回完整的响应，包含算法ID、密钥长度、模数和公钥指数等信息
 			const algId = UKeyUtils.hexToInt(response.substring(8, 16));
-			const len = UKeyUtils.hexToInt(response.substring(16, 24)) / 8;
-			const modulus = response.substring(24 + 256 * 2 - len * 2, 24 + 256 * 2);
+			// bitLen 为密钥位长（如 2048），模数按位长换算的字节数右对齐截取
+			const bitLen = UKeyUtils.hexToInt(response.substring(16, 24));
+			if (Number.isNaN(bitLen) || bitLen < 1) {
+				error.message = 'GenRSAKeyPair error. invalid key length';
+				return faultResponse;
+			}
+			const byteLen = bitLen / 8;
+			const modulus = response.substring(24 + 256 * 2 - byteLen * 2, 24 + 256 * 2);
 			const publicExponent = response.substring(24 + 256 * 2, 24 + 256 * 2 + 8);
 			const publicKeyBlob: RsaPublicKeyBlob = {
 				algId: algId,
-				bitLen: len,
+				bitLen: bitLen,
 				modulus: modulus,
 				publicExponent: publicExponent,
 			};
@@ -936,7 +888,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -946,14 +898,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'ImportRSAKeyPair error. ';
@@ -975,16 +921,15 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 
 			const signLen = UKeyUtils.hexToInt(response.substring(8, 16));
+			if (Number.isNaN(signLen) || signLen < 1) {
+				error.message = 'RSASignData error. invalid signature length';
+				return faultResponse;
+			}
 			const signData = response.substring(16, 16 + signLen * 2);
 			const successResponse: UKeySuccessResponse<string> = {
 				...ukeyResponse,
@@ -1017,20 +962,20 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
-			if (UKeyUtils.checkCode(response.toString())) {
+			// 响应头4字节为响应码，需按小端序转为整数后判断
+			if (UKeyUtils.checkCode(UKeyUtils.hexToInt(response.substring(0, 8)))) {
 				let index = 8;
 				const sessionKey = UKeyUtils.hexToInt(response.substring(index, index + 8));
 				index += 8;
 				const datalen = UKeyUtils.hexToInt(response.substring(index, index + 8));
 				index += 8;
+				if (Number.isNaN(datalen) || datalen < 1) {
+					error.message = 'RSAExportSessionKey error. invalid cipher length';
+					return faultResponse;
+				}
 				const cipher = response.substring(index, index + datalen * 2);
 				const successResponse: UKeySuccessResponse<RsaSessionKey> = {
 					...ukeyResponse,
@@ -1060,12 +1005,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			// 解析ECC公钥信息
@@ -1075,13 +1015,11 @@ class UKeyClient {
 			const xCoordinate = response.substring(index, index + 128);
 			index += 128;
 			const yCoordinate = response.substring(index, index + 128);
-			const eccPublicyKeyBlob: EccPublicKeyBlob = { bitLen, xCoordinate, yCoordinate };
-
-			error.message = JSON.stringify(eccPublicyKeyBlob);
+			const eccPublicKeyBlob: EccPublicKeyBlob = { bitLen, xCoordinate, yCoordinate };
 			const successResponse: UKeySuccessResponse<EccPublicKeyBlob> = {
 				...ukeyResponse,
 				success: true,
-				data: eccPublicyKeyBlob,
+				data: eccPublicKeyBlob,
 			};
 			return successResponse;
 		} else {
@@ -1102,7 +1040,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1112,14 +1050,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'ImportECCKeyPair error. ';
@@ -1141,12 +1073,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const r = response.substring(8, 8 + 64 * 2);
@@ -1184,12 +1111,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			let index = 8;
@@ -1206,6 +1128,10 @@ class UKeyClient {
 
 			const len = UKeyUtils.hexToInt(response.substring(index, index + 8));
 			index += 8;
+			if (Number.isNaN(len) || len < 1) {
+				error.message = 'ECCExportSessionKey error. invalid cipher length';
+				return faultResponse;
+			}
 			const cipher = response.substring(index, index + len * 2);
 
 			const cipherBlob: EccCipherBlob = {
@@ -1241,7 +1167,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1251,14 +1177,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'EncryptInit error. ';
@@ -1280,17 +1200,15 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const encLen = UKeyUtils.hexToInt(response.substring(8, 16));
+			if (Number.isNaN(encLen) || encLen < 1) {
+				error.message = 'Encrypt error. invalid data length';
+				return faultResponse;
+			}
 			const encData = response.substring(16, 16 + encLen * 2);
-			error.message = encData;
 			const successResponse: UKeySuccessResponse<string> = {
 				...ukeyResponse,
 				success: true,
@@ -1316,12 +1234,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const successResponse: UKeySuccessResponse<boolean> = {
@@ -1349,15 +1262,14 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const encLen = UKeyUtils.hexToInt(response.substring(8, 16));
+			if (Number.isNaN(encLen) || encLen < 1) {
+				error.message = 'EncryptFinal error. invalid data length';
+				return faultResponse;
+			}
 			const encData = response.substring(16, 16 + encLen * 2);
 			const successResponse: UKeySuccessResponse<string> = {
 				...ukeyResponse,
@@ -1393,12 +1305,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const hashHandle = UKeyUtils.hexToInt(response.substring(8, 16));
@@ -1428,15 +1335,14 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const digestLen = UKeyUtils.hexToInt(response.substring(8, 16));
+			if (Number.isNaN(digestLen) || digestLen < 1) {
+				error.message = 'Digest error. invalid digest length';
+				return faultResponse;
+			}
 			const digest = response.substring(16, 16 + digestLen * 2);
 			const successResponse: UKeySuccessResponse<string> = {
 				...ukeyResponse,
@@ -1450,7 +1356,7 @@ class UKeyClient {
 		return faultResponse;
 	}
 	/**
-	 * 摘要计算完成 要配合digestUpdate使用
+	 * 分组摘要计算 要配合digestInit和digestFinal使用
 	 * @param hashHandle 摘要句柄
 	 * @param hexData 待摘要数据的十六进制字符串
 	 * @returns Promise<UKeyResponse<boolean>>
@@ -1462,7 +1368,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1472,14 +1378,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'DigestUpdate error. ';
@@ -1500,15 +1400,14 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const digestLen = UKeyUtils.hexToInt(response.substring(8, 16));
+			if (Number.isNaN(digestLen) || digestLen < 1) {
+				error.message = 'Digest error. invalid digest length';
+				return faultResponse;
+			}
 			const digest = response.substring(16, 16 + digestLen * 2);
 			const successResponse: UKeySuccessResponse<string> = {
 				...ukeyResponse,
@@ -1535,7 +1434,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1545,14 +1444,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'CloseHandle error. ';
@@ -1574,16 +1467,11 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const size = UKeyUtils.hexToInt(response.substring(8, 16));
-			if (size < 1) {
+			if (Number.isNaN(size) || size < 1) {
 				error.message = 'EnumSKFile error. size < 1';
 				return faultResponse;
 			}
@@ -1593,6 +1481,10 @@ class UKeyClient {
 				error.message = 'EnumSKFile error. hexToAscii error';
 			} else {
 				const fileNameList = resultStr.split('\0');
+				if (fileNameList.length < 1) {
+					error.message = 'EnumSKFile error. fileNameList.length < 1';
+					return faultResponse;
+				}
 				const successResponse: UKeySuccessResponse<string[]> = {
 					...ukeyResponse,
 					success: true,
@@ -1619,7 +1511,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1629,14 +1521,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'DeleteSKFile error. ';
@@ -1658,12 +1544,7 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			let indexStart = 0,
@@ -1709,7 +1590,7 @@ class UKeyClient {
 	 * @param fileName 文件名
 	 * @param fileSize 文件大小
 	 * @param read 读权限
-	 * @param ulFIleWRight 写权限
+	 * @param ulFileWRight 写权限
 	 * @returns Promise<UKeyResponse<boolean>>
 	 */
 	async createSKFile(
@@ -1717,21 +1598,21 @@ class UKeyClient {
 		fileName: string,
 		fileSize: number,
 		read: number,
-		ulFIleWRight: number
+		ulFileWRight: number
 	): Promise<UKeyResponse<boolean>> {
 		const ukeyResponse = await this.ukeyWebSocketClient.createSKFile(
 			appHandle,
 			fileName,
 			fileSize,
 			read,
-			ulFIleWRight
+			ulFileWRight
 		);
 		const { result, response } = ukeyResponse;
 		const error = getDefaultErrorCode();
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1741,14 +1622,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'CreateSKFile error. ';
@@ -1777,19 +1652,17 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const ret = UKeyUtils.hexToInt(response.substring(0, 8));
 			if (UKeyUtils.checkCode(ret)) {
 				const realReadSize = UKeyUtils.hexToInt(response.substring(8, 16));
+				if (Number.isNaN(realReadSize) || realReadSize < 1) {
+					error.message = 'ReadSKFile error. size < 1';
+					return faultResponse;
+				}
 				const realReadData = response.substring(16, 16 + realReadSize * 2);
-				error.message = realReadData;
 				const successResponse: UKeySuccessResponse<string> = {
 					...ukeyResponse,
 					success: true,
@@ -1825,7 +1698,7 @@ class UKeyClient {
 
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
-			if (UKeyUtils.checkCode(response.toString())) {
+			if (UKeyUtils.checkCode(response)) {
 				const successResponse: UKeySuccessResponse<boolean> = {
 					...ukeyResponse,
 					success: true,
@@ -1835,14 +1708,8 @@ class UKeyClient {
 			} else {
 				//response 是一个10进制数。
 				//167772165 ->0x0a000005
-				const errorCode = getErrorCodeByCode(Number.parseInt(response));
-				if (errorCode && !isSuccessCode(errorCode.code)) {
-					error.code = errorCode.code;
-					error.message = errorCode.description;
-					error.messageId = errorCode.messageId;
-					error.value = errorCode.value;
-					return faultResponse;
-				}
+				this.fillErrorByCode(Number.parseInt(response), error);
+				return faultResponse;
 			}
 		} else {
 			error.message = 'WriteSKFile error. ';
@@ -1864,19 +1731,17 @@ class UKeyClient {
 		const faultResponse: UKeyErrorResponse = { ...ukeyResponse, success: false, error };
 		if (result) {
 			const responseCode = UKeyUtils.getResponseCode(response);
-			const errorCode = getErrorCodeByHexString(responseCode);
-			if (errorCode && !isSuccessCode(errorCode.code)) {
-				error.code = errorCode.code;
-				error.message = errorCode.description;
-				error.messageId = errorCode.messageId;
-				error.value = errorCode.value;
+			if (this.fillErrorByResponseCode(responseCode, error)) {
 				return faultResponse;
 			}
 			const ret = UKeyUtils.hexToInt(response.substring(0, 8));
 			if (UKeyUtils.checkCode(ret)) {
 				const genSize = UKeyUtils.hexToInt(response.substring(8, 16));
+				if (Number.isNaN(genSize) || genSize < 1) {
+					error.message = 'GenRandomData error. size < 1';
+					return faultResponse;
+				}
 				const genData = response.substring(16, 16 + genSize * 2);
-				error.message = genData;
 				const successResponse: UKeySuccessResponse<string> = {
 					...ukeyResponse,
 					success: true,
@@ -1896,17 +1761,8 @@ class UKeyClient {
 	 * @returns Promise<UKeyResponse<boolean>>
 	 */
 	async close(): Promise<UKeyResponse<boolean>> {
-		let response: UKeyResponse<boolean> = {
-			result: true,
-			response: '',
-			success: true,
-			data: true,
-		};
-		if (this.ukeyWebSocketClient) {
-			const result = await this.ukeyWebSocketClient.close();
-			response = { ...response, ...result };
-		}
-		return response;
+		const result = await this.ukeyWebSocketClient.close();
+		return { success: true, data: true, ...result };
 	}
 }
 
