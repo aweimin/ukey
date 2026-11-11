@@ -2,11 +2,19 @@
 	"name": "ukey-skf",
 	"version": "0.0.6",
 	"description": "",
-	"main": "lib/index.js",
+	"main": "lib/index.cjs",
 	"module": "es/index.js",
 	"unpkg": "dist/index.umd.min.js",
 	"types": "es/index.d.ts",
 	"type": "module",
+	"exports": {
+		".": {
+		"types": "./es/index.d.ts",
+		"import": "./es/index.js",
+		"require": "./lib/index.cjs"
+		},
+		"./package.json": "./package.json"
+	},
 	"devEngines": {
 		"packageManager": [
 			{
@@ -18,13 +26,6 @@
 	},
 	"publishConfig": {
 		"registry": "https://registry.npmjs.org"
-	},
-	"exports": {
-		".": {
-			"import": "./es/index.js",
-			"require": "./lib/index.js"
-		},
-		"./package.json": "./package.json"
 	},
 	"files": [
 		"lib/",
