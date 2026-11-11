@@ -1,6 +1,6 @@
 {
 	"name": "ukey-skf",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"description": "",
 	"main": "lib/index.cjs",
 	"module": "es/index.js",
@@ -9,9 +9,9 @@
 	"type": "module",
 	"exports": {
 		".": {
-		"types": "./es/index.d.ts",
-		"import": "./es/index.js",
-		"require": "./lib/index.cjs"
+			"types": "./es/index.d.ts",
+			"import": "./es/index.js",
+			"require": "./lib/index.cjs"
 		},
 		"./package.json": "./package.json"
 	},
