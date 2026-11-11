@@ -3,6 +3,8 @@
 # 忽略所有压缩后的文件
 **/*.min.{js,css}
 **/*.svg
+**/*.yml
+**/*.yaml
 
 **/node_modules/**
 **/.pnpm/**
