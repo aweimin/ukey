@@ -2,7 +2,7 @@ export default {
 	reject: ['pnpm'],
 
 	target: (name) => {
-		const minorUpArr = ['antd', '@types/node'];
+		const minorUpArr = ['@types/node', 'typescript'];
 		if (minorUpArr.includes(name)) {
 			//minor（次版本策略）:
 			//只升级 minor 和 patch 版本，不升级 major 版本
